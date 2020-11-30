@@ -22,22 +22,22 @@ Marketing Mix Model,  or  Media Mix Model (MMM) is used by advertisers to measur
 
 **Actual Customer Journey: Multiple Touchpoints**    
 A customer saw a product on TV > clicked on a display ad > clicked on a paid seach ad > made a purchase of $30. In this case, 3 touchpoints contributed to the conversion, and they should all get credits for this conversion.    
-![actual customer journey - multiple touchpoints](img/mmm_stan_multitouch.png)    
+![actual customer journey - multiple touchpoints](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xxyq508j30fw04smxe.jpg)    
 
 ​    
 
 **What's trackable: Last Digital Touchpoint**    
 Usually, only the last digital touchpoint can be tracked. In this case, SEM, and it will get all credits for this conversion.    
-![what can be tracked - last touchpoint](img/mmm_stan_lasttouch.png)    
+![what can be tracked - last touchpoint](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xye27aaj307k04imx6.jpg)    
 So, a good attribution model should take into account all the relevant variables leading to conversion.    
 
 ​    
 
 ## 1.1 Multiplicative MMM
 Since media channels work interactively, a multiplicative model structure is adopted:    
-![multiplicative MMM](img/mmm_stan_formular_mmm_multiplicative.png)
+![multiplicative MMM](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm7182rj309s02y0sm.jpg)    
 Take log of both sides, we get the linear form (log-log model):    
-![multiplicative MMM - linear form](img/mmm_stan_formular_mmm_linear.png)    
+![multiplicative MMM - linear form](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm7bxfyj30iz02wjrb.jpg)    
 
 **Constraints on Coefficients**
 
@@ -49,25 +49,24 @@ Take log of both sides, we get the linear form (log-log model):
 
 ## 1.2 Adstock
 Media effect on sales may lag behind the original exposure and extend several weeks. The carry-over effect is modeled by Adstock:    
-![adstock transformation](img/mmm_stan_formular_adstock.png)    
+![adstock transformation](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm86xyuj30hd04smx1.jpg)    
 L: length of the media effect    
 P: peak/delay of the media effect, how many weeks it's lagging behind first exposure    
 D: decay/retention rate of the media channel, concentration of the effect    
 The media effect of current weeks is a weighted average of current week and previous (L− 1) weeks.    
     
 **Adstock Example**    
-![adstock example](img/mmm_stan_adstock_example.png)    
+![adstock example](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wmbuc9bj30gu085mx3.jpg)    
 
 ​    
 
 **Adstock with Varying Decay**    
 The larger the decay, the more scattered the effect.    
-![adstock parameter - decay](img/mmm_stan_adstock_decay.png)    
+![adstock parameter - decay](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wmcleayj30o808wmxy.jpg)    
 **Adstock with Varying Length**    
 The impact of length is relatively minor. In model training, length could be fixed to 8 weeks or a period long enough for the media effect to finish.    
-![adstock parameter - length](img/mmm_stan_adstock_length.png)   
-    
-**Implementation**
+![adstock parameter - length](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wmbj2d9j30o808wt9e.jpg)   
+      
 
 
 ```python
@@ -100,6 +99,15 @@ def apply_adstock(x, L, P, D):
     return adstocked_x
 
 def adstock_transform(df, md_cols, adstock_params):
+    '''
+    params:
+    df: original data
+    md_cols: list, media variables to be transformed
+    adstock_params: dict, 
+        e.g., {'sem': {'L': 8, 'P': 0, 'D': 0.1}, 'dm': {'L': 4, 'P': 1, 'D': 0.7}}
+    returns: 
+    adstocked df
+    '''
     md_df = pd.DataFrame()
     for md_col in md_cols:
         md = md_col.split('_')[-1]
@@ -110,18 +118,17 @@ def adstock_transform(df, md_cols, adstock_params):
 ```
 
 
+
 ## 1.2 Diminishing Return    
 After a certain saturation point, increasing spend will yield diminishing marginal return, the channel will be losing efficiency as you keep overspending on it. The diminishing return is modeled by Hill function:    
-![Hill function](img/mmm_stan_formular_hill.png)    
+![Hill function](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm7xn1rj3081034742.jpg)    
 K: half saturation point    
 S: slope    
     
 **Hill function with varying K and S**
-![Hill function with varying K and S](img/mmm_stan_hill_function_demo.png)    
+![Hill function with varying K and S](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm6l26vj30ex0aeq3b.jpg)    
 
 ​    
-
-**Implementation**
 
 ```python
 def hill_transform(x, ec, slope):
@@ -307,25 +314,23 @@ The model is built in a stacked way. Three models are trained:
 - Control Model
 - Marketing Mix Model
 - Diminishing Return Model    
-![mmm_stan_model_architecture.png](img/mmm_stan_model_architecture.png)
+![mmm_stan_model_architecture](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xsjhi8ej31150g7q59.jpg)
 
 ​    
 
 ## 2.1 Control Model / Base Sales Model    
 
 **Goal**: predict base sales (X_ctrl) as an input variable to MMM, this represents the baseline sales trend without any marketing activities.    
-![control model formular.png](img/mmm_stan_model_control.png)    
+![control model formular](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xtspsg6j30bk055q2w.jpg)    
 X1: control variables positively related with sales, including macro economy, store count, markdown, holiday.    
 X2: control variables that may have either positive or negtive impact on sales: seasonality.    
 Target variable: ln(sales).    
 The variables are centralized by mean.
     
 **Priors**    
-![control model priors](img/mmm_stan_model_control_prior.png)    
+![control model priors](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xub4ploj30ns07tglw.jpg)    
 
 ​    
-
-**Implementation**    
 
 
 ```python
@@ -334,6 +339,7 @@ import os
 os.environ['CC'] = 'gcc-10'
 os.environ['CXX'] = 'g++-10'
 
+# helper functions
 def apply_mean_center(x):
     mu = np.mean(x)
     xm = x/mu
@@ -450,10 +456,11 @@ MAPE of control model: 8.63%
 ## 2.2 Marketing Mix Model
 
 **Goal**:
+
 - Find appropriate adstock parameters for media channels;
 - Decompose sales to media channels' contribution (and non-marketing contribution).
 
-![marketing mix model formular](img/mmm_stan_model_mmm.png)    
+![marketing mix model formular](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xuxgp98j30l206ddfz.jpg)    
 L: length of media impact    
 P: peak of media impact    
 D: decay of media impact    
@@ -462,9 +469,8 @@ Target variable: ln(sales)
 Variables are centralized by mean.
     
 **Priors**    
-![marketing mix model priors](img/mmm_stan_model_mmm_prior.png) 
-    
-**Implementation**    
+![marketing mix model priors](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xvel601j30ns09ddg7.jpg) 
+     
 
 
 ```python
@@ -597,7 +603,7 @@ mmm = extract_mmm(fit2, max_lag=max_lag, media_vars=mdip_cols, ctrl_vars=['base_
 
 **Distribution of Media Coefficients**    
 red line: mean, green line: median    
-![media coefficients distribution](img/mmm_stan_media_coefficient.png)
+![media coefficients distribution](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xptfcjhj30tk0nvaby.jpg)
 
 
 
@@ -605,10 +611,10 @@ red line: mean, green line: median
 
 Each media channel's contribution = total sales - sales upon removal of the channel    
 In the previous model fitting step, parameters of the log-log model have been found:    
-![mmm_stan_decompose_contrib1](img/mmm_stan_decompose_contrib1.png)    
+![mmm_stan_decompose_contrib1](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wmb2h4xj30f502ymx2.jpg)    
 Plug them into the multiplicative model:    
-![mmm_stan_decompose_contrib2](img/mmm_stan_decompose_contrib2.png)    
-![mmm_stan_decompose_contrib3](img/mmm_stan_decompose_contrib3.png)    
+![mmm_stan_decompose_contrib2](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wmang1vj30b403ajr9.jpg)    
+![mmm_stan_decompose_contrib3](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wmabfp4j30j309wwem.jpg)    
 
 
 ```python
@@ -631,6 +637,7 @@ def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
     y_true2 = y_true2 + 1
     sc_mmm2.update(sc_mmm2_1)
     sc_mmm2.update(sc_mmm2_2)
+    # X2 <- media variables + ctrl variable
     X2 = pd.concat([X_media2, X_ctrl2], axis=1)
 
     # 1. compute each media/control factor: 
@@ -650,7 +657,6 @@ def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
     # 2. calculate the product of all factors -> y_pred
     y_pred = factor_df.apply(np.prod, axis=1)
     factor_df['y_pred'], factor_df['y_true2'] = y_pred, y_true2
-    # baseline = intercept * control factor
     factor_df['baseline'] = factor_df[['intercept']+ctrl_vars].apply(np.prod, axis=1)
 
     # 3. calculate each media factor's contribution
@@ -676,6 +682,7 @@ def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
     mc_df['sales'] = original_sales
     for col in media_vars+['baseline']:
         mc_df[col] = mc_df[col]*mc_df['sales']/mc_df['y_true2']
+
     return mc_df
 
 def calc_media_contrib_pct(mc_df, media_vars=mdip_cols, sales_col='sales', period=52):
@@ -732,7 +739,7 @@ MAPE (multiplicative model):  15.71%
 ## 2.3 Diminishing Return Model    
 
 **Goal**: for each channel, find the relationship (fit a Hill function) between spending and contribution, so that ROAS and marginal ROAS can be calculated.    
-![diminishing return model formular](img/mmm_stan_model_return.png)    
+![diminishing return model formular](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xw5vh44j30bx04ajrc.jpg)    
 x: adstocked media channel spending   
 K: half saturation    
 S: shape    
@@ -740,7 +747,7 @@ Target variable: the media channel's contribution
 Variables are centralized by mean.
     
 **Priors**    
-![diminishing return model priors](img/mmm_stan_model_return_prior.png)          
+![diminishing return model priors](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xwpdt0vj30nu06hjrh.jpg)          
 **Implementation**    
 
 
@@ -867,11 +874,11 @@ for md in list(hill_models.keys()):
 ```
 
 **Distribution of K (Half Saturation Point)**    
-![half saturation distribution](img/mmm_stan_ec.png)    
+![half saturation distribution](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xoj4u7cj30t60jcjsv.jpg)    
 **Distribution of S (Slope)**    
-![slope distribution](img/mmm_stan_slope.png)    
+![slope distribution](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xx5rqkej30te0jcta9.jpg)    
 **Diminishing Return Model (Fitted Hill Curve)**    
-![fitted hill](img/mmm_stan_hill.png)    
+![fitted hill](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm62suqj30sv0pe0v2.jpg)    
 
 
 
@@ -919,8 +926,8 @@ roas1y_df['roas_median'] = weekly_roas[-52:].apply(np.median, axis=0)
 ```
 
 **Distribution of Weekly ROAS** (Recent 1 Year)    
-red line: mean, green line: median
-![weekly roas](img/mmm_stan_dist_roas_1y.png)
+red line: mean, green line: median    
+![weekly roas](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm9x0s0j30te0jcwft.jpg)
 
 
 
@@ -979,6 +986,8 @@ for md in list(hill_models.keys()):
     mroas_mean[md] = calc_mroas(hill_model, hill_model_params, method='mean', period=52)
     mroas_med[md] = calc_mroas(hill_model, hill_model_params, method='median', period=52)
 ```
+
+​    
 
 **ROAS & mROAS**    
 'roas_avg': overall ROAS = total contribution / total spending    
@@ -1095,17 +1104,16 @@ for md in list(hill_models.keys()):
 # 3. Results & Marketing Budget Optimization    
 **Media Channel Contribution**    
 80% sales are contributed by non-marketing factors, marketing channels contributed 20% sales.    
-![marketing contribution plot](img/mmm_stan_media_contribution.png)    
+![marketing contribution plot](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xrk9m6ej31f90k0tdr.jpg)    
 Top contributors: TV, affiliates, SEM    
-![media contribution percentage plot](img/mmm_stan_media_contribution_pct.png)    
+![media contribution percentage plot](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xqzgkg1j30qy0d43yz.jpg)    
 **ROAS**    
 High ROAS: TV, insert, online display    
-![media channels contribution roas plot](img/mmm_stan_media_contrib_roas.png)    
+![media channels contribution roas plot](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xqf7ytqj30yn0hz0tt.jpg)    
 **mROAS**    
 High mROAS: TV, insert, radio, online display    
-![media channels roas mroas plot](img/mmm_stan_media_roas_mroas.png)    
-Note: trivial channels: newspaper, digital audio, digital video, social (spending/impression too small to be qualified, so that their results are not trustworthy).
-
+![media channels roas mroas plot](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xrzbo4bj30ys0hd3zj.jpg)    
+Note: trivial channels: newspaper, digital audio, digital video, social (spending/impression too small to be qualified, so that their results are not trustworthy).    
 
 
 ## References
@@ -1117,7 +1125,5 @@ https://www.cnpython.com/pypi/pystan
 https://mc-stan.org/users/documentation/case-studies/pystan_workflow.html    
 https://nbviewer.jupyter.org/github/QuantEcon/QuantEcon.notebooks/blob/master/IntroToStan_basics_workflow.ipynb    
 HMC sampling: https://education.illinois.edu/docs/default-source/carolyn-anderson/edpsy590ca/lectures/9-hmc-and-stan/hmc_n_stan_post.pdf       
-
-
-
-**Thanks for reading! If you like this project, please leave a :star2: :)**
+    
+**Thanks for reading! If you like this project, please leave a :star2: for motivation:)**
