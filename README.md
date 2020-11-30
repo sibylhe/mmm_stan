@@ -64,7 +64,7 @@ The media effect of current weeks is a weighted average of current week and prev
 The larger the decay, the more scattered the effect.    
 ![adstock parameter - decay](img/mmm_stan_adstock_decay.png)    
 **Adstock with Varying Length**    
-The impact of length is relatively minor. In model training, length could be fixed to 8 weeks or a period long enough for the media effect to finish.
+The impact of length is relatively minor. In model training, length could be fixed to 8 weeks or a period long enough for the media effect to finish.    
 ![adstock parameter - length](img/mmm_stan_adstock_length.png)   
     
 **Implementation**
@@ -108,7 +108,6 @@ def adstock_transform(df, md_cols, adstock_params):
         md_df[md_col] = xa
     return md_df
 ```
-
 
 
 ## 1.2 Diminishing Return    
