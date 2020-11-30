@@ -71,18 +71,8 @@ The impact of length is relatively minor. In model training, length could be fix
 
 
 ```python
-import warnings
-warnings.filterwarnings("ignore")
-
 import numpy as np
 import pandas as pd
-import sys
-import matplotlib.pyplot as plt
-import seaborn as sns
-%matplotlib inline
-
-sns.color_palette("husl")
-sns.set_style('darkgrid')
 
 def apply_adstock(x, L, P, D):
     '''
@@ -110,15 +100,6 @@ def apply_adstock(x, L, P, D):
     return adstocked_x
 
 def adstock_transform(df, md_cols, adstock_params):
-    '''
-    params:
-    df: original data
-    md_cols: list, media variables to be transformed
-    adstock_params: dict, 
-        e.g., {'sem': {'L': 8, 'P': 0, 'D': 0.1}, 'dm': {'L': 4, 'P': 1, 'D': 0.7}}
-    returns: 
-    adstocked df
-    '''
     md_df = pd.DataFrame()
     for md_col in md_cols:
         md = md_col.split('_')[-1]
@@ -353,12 +334,6 @@ import pystan
 import os
 os.environ['CC'] = 'gcc-10'
 os.environ['CXX'] = 'g++-10'
-
-# helper functions
-from sklearn.metrics import mean_squared_error
-def mean_absolute_percentage_error(y_true, y_pred): 
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
-    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 def apply_mean_center(x):
     mu = np.mean(x)
@@ -640,13 +615,11 @@ Plug them into the multiplicative model:
 ```python
 # decompose sales to media contribution
 def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
-    # adstock params
     adstock_params = mmm['adstock_params']
-    # coefficients, intercept
     beta, tau = mmm['beta'], mmm['tau']
-    # variables
     media_vars, ctrl_vars = mmm['media_vars'], mmm['ctrl_vars']
     num_media, num_ctrl = len(media_vars), len(ctrl_vars)
+    
     # X_media2: adstocked, mean-centered media variables + 1
     X_media2 = adstock_transform(df, media_vars, adstock_params)
     X_media2, sc_mmm2 = mean_center_trandform(X_media2, media_vars)
@@ -659,7 +632,6 @@ def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
     y_true2 = y_true2 + 1
     sc_mmm2.update(sc_mmm2_1)
     sc_mmm2.update(sc_mmm2_2)
-    # X2 <- media variables + ctrl variable
     X2 = pd.concat([X_media2, X_ctrl2], axis=1)
 
     # 1. compute each media/control factor: 
@@ -705,12 +677,6 @@ def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
     mc_df['sales'] = original_sales
     for col in media_vars+['baseline']:
         mc_df[col] = mc_df[col]*mc_df['sales']/mc_df['y_true2']
-    
-    # rmse of log-log model, rmsle on original data
-    print('rmse (log-log model): ', 
-         mean_squared_error(np.log(y_true2), np.log(y_pred)) ** (1/2))
-    print('mape (multiplicative model): ', 
-         mean_absolute_percentage_error(y_true2, y_pred))
     return mc_df
 
 def calc_media_contrib_pct(mc_df, media_vars=mdip_cols, sales_col='sales', period=52):
@@ -844,16 +810,6 @@ model {
 
 # pipeline for training one hill model for a media channel
 def train_hill_model(df, mc_df, adstock_params, media, sm):
-    '''
-    params:
-    df: original data
-    mc_df: media contribution df derived from MMM
-    adstock_params: adstock parameter dict output by MMM
-    media: 'dm', 'inst', 'nsp', 'auddig', 'audtr', 'vidtr', 'viddig', 'so', 'on', 'sem'
-    sm: stan model object    
-    returns:
-    a dict of model data, scaler, parameters
-    '''
     data, sc = create_hill_model_data(df, mc_df, adstock_params, media)
     fit = sm.sampling(data=data, iter=2000, chains=4)
     fit_result = fit.extract()
@@ -892,14 +848,6 @@ def hill_model_predict(hill_model_params, x):
     beta_hill, ec, slope = hill_model_params['beta_hill'], hill_model_params['ec'], hill_model_params['slope']
     y_pred = beta_hill * hill_transform(x, ec, slope)
     return y_pred
-
-def evaluate_hill_model(hill_model, hill_model_params):
-    x = hill_model['data']['X']
-    y_true = hill_model['data']['y'] * hill_model['sc']['y']
-    y_pred = hill_model_predict(hill_model_params, x) * hill_model['sc']['y']
-    print('mape on original data: ', 
-         mean_absolute_percentage_error(y_true, y_pred))
-    return y_true, y_pred
 
 # train hill models for all media channels
 sm3 = pystan.StanModel(model_code=model_code3, verbose=True)
@@ -1031,16 +979,6 @@ for md in list(hill_models.keys()):
     hill_model_params = hill_model_params_mean[md]
     mroas_mean[md] = calc_mroas(hill_model, hill_model_params, method='mean', period=52)
     mroas_med[md] = calc_mroas(hill_model, hill_model_params, method='median', period=52)
-```
-
-
-```python
-roas1y_df = pd.concat([
-    roas1y_df,
-    pd.DataFrame.from_dict(mroas_mean, orient='index', columns=['mroas_mean']),
-    pd.DataFrame.from_dict(mroas_med, orient='index', columns=['mroas_median']),
-    pd.DataFrame.from_dict(roas_1y, orient='index', columns=['roas_avg'])
-], axis=1)
 ```
 
 **ROAS & mROAS**    
