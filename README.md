@@ -1,14 +1,12 @@
 # Python/STAN Implementation of Multiplicative Media Mix Model
 The methodology of this project is based on [this paper](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/46001.pdf) by Google, but is applied to a more complicated, real-world setting, where 1) there are 13 media channels and 46 control variables; 2) models are built in a stacked way.    
      
-
-
 # 1. Introduction
 Marketing Mix Model,  or  Media Mix Model (MMM) is used by advertisers to measure how their media spending contributes to sales, so as to optimize future budget allocation. **ROAS** (return on ad spend) and **mROAS** (marginal ROAS) are the key metrics to look at. High ROAS indicates the channel is efficient, high mROAS means increasing spend in the channel will yield a high return based on current spending level.   
     
 **Procedures**        
 
-1. Fit a multivariate regression model, using media channels' impressions (or spending) and control variables to predict sales;
+1. Fit a regression model with priors on coefficients, using media channels' impressions (or spending) and control variables to predict sales;
 
 2. Decompose sales to each media channel's contribution. Channel contribution is calculated by comparing original sales and predicted sales upon removal of the channel;
 
@@ -97,27 +95,7 @@ def apply_adstock(x, L, P, D):
         adstocked_x.append(xi)
     adstocked_x = np.array(adstocked_x)
     return adstocked_x
-
-def adstock_transform(df, md_cols, adstock_params):
-    '''
-    params:
-    df: original data
-    md_cols: list, media variables to be transformed
-    adstock_params: dict, 
-        e.g., {'sem': {'L': 8, 'P': 0, 'D': 0.1}, 'dm': {'L': 4, 'P': 1, 'D': 0.7}}
-    returns: 
-    adstocked df
-    '''
-    md_df = pd.DataFrame()
-    for md_col in md_cols:
-        md = md_col.split('_')[-1]
-        L, P, D = adstock_params[md]['L'], adstock_params[md]['P'], adstock_params[md]['D']
-        xa = apply_adstock(df[md_col].values, L, P, D)
-        md_df[md_col] = xa
-    return md_df
 ```
-
-
 
 ## 1.2 Diminishing Return    
 After a certain saturation point, increasing spend will yield diminishing marginal return, the channel will be losing efficiency as you keep overspending on it. The diminishing return is modeled by Hill function:    
@@ -125,7 +103,7 @@ After a certain saturation point, increasing spend will yield diminishing margin
 K: half saturation point    
 S: slope    
     
-**Hill function with varying K and S**
+**Hill function with varying K and S**    
 ![Hill function with varying K and S](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm6l26vj30ex0aeq3b.jpg)    
 
 ​    
@@ -307,8 +285,6 @@ sales_cols =['sales']
 </table>
 </div>
 
-
-
 ## Model Architecture
 The model is built in a stacked way. Three models are trained:   
 - Control Model
@@ -418,40 +394,9 @@ sm1 = pystan.StanModel(model_code=ctrl_code1, verbose=True)
 fit1 = sm1.sampling(data=ctrl_data, iter=2000, chains=4)
 fit1_result = fit1.extract()
 ```
-
-
-```python
-# extract control model parameters and predict base sales -> df['base_sales']
-def extract_ctrl_model(fit_result, pos_vars=pos_vars, pn_vars=pn_vars, 
-                       extract_param_list=False):
-    ctrl_model = {}
-    ctrl_model['pos_vars'] = pos_vars
-    ctrl_model['pn_vars'] = pn_vars
-    ctrl_model['beta1'] = fit_result['beta1'].mean(axis=0).tolist()
-    ctrl_model['beta2'] = fit_result['beta2'].mean(axis=0).tolist()
-    ctrl_model['alpha'] = fit_result['alpha'].mean()
-    if extract_param_list:
-        ctrl_model['beta1_list'] = fit_result['beta1'].tolist()
-        ctrl_model['beta2_list'] = fit_result['beta2'].tolist()
-        ctrl_model['alpha_list'] = fit_result['alpha'].tolist()
-    return ctrl_model
-
-def ctrl_model_predict(ctrl_model, df):
-    pos_vars, pn_vars = ctrl_model['pos_vars'], ctrl_model['pn_vars'] 
-    X1, X2 = df[pos_vars], df[pn_vars]
-    beta1, beta2 = np.array(ctrl_model['beta1']), np.array(ctrl_model['beta2'])
-    alpha = ctrl_model['alpha']
-    y_pred = np.dot(X1, beta1) + np.dot(X2, beta2) + alpha
-    return y_pred
-
-base_sales_model = extract_ctrl_model(fit1_result, pos_vars=pos_vars, pn_vars=pn_vars)
-base_sales = ctrl_model_predict(base_sales_model, df_ctrl)
-df['base_sales'] = base_sales*sc_ctrl['sales']
-```
-
-MAPE of control model: 8.63%
-
-
+    
+MAPE of control model: 8.63%    
+Extract control model parameters from the fit object and predict base sales -> df['base_sales']    
 
 ## 2.2 Marketing Mix Model
 
@@ -471,8 +416,6 @@ Variables are centralized by mean.
 **Priors**    
 ![marketing mix model priors](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xvel601j30ns09ddg7.jpg) 
      
-
-
 ```python
 df_mmm, sc_mmm = mean_log1p_trandform(df, ['sales', 'base_sales'])
 mu_mdip = df[mdip_cols].apply(np.mean, axis=0).values
@@ -566,46 +509,10 @@ sm2 = pystan.StanModel(model_code=model_code2, verbose=True)
 fit2 = sm2.sampling(data=model_data2, iter=1000, chains=3)
 fit2_result = fit2.extract()
 ```
-
-
-```python
-# extract mmm parameters
-def extract_mmm(fit_result, max_lag=max_lag, 
-                media_vars=mdip_cols, ctrl_vars=['base_sales'], 
-                extract_param_list=True):
-    mmm = {}
     
-    mmm['max_lag'] = max_lag
-    mmm['media_vars'], mmm['ctrl_vars'] = media_vars, ctrl_vars
-    mmm['decay'] = decay = fit_result['decay'].mean(axis=0).tolist()
-    mmm['peak'] = peak = fit_result['peak'].mean(axis=0).tolist()
-    mmm['beta'] = fit_result['beta'].mean(axis=0).tolist()
-    mmm['tau'] = fit_result['tau'].mean()
-    if extract_param_list:
-        mmm['decay_list'] = fit_result['decay'].tolist()
-        mmm['peak_list'] = fit_result['peak'].tolist()
-        mmm['beta_list'] = fit_result['beta'].tolist()
-        mmm['tau_list'] = fit_result['tau'].tolist()
-    
-    adstock_params = {}
-    media_names = [col.replace('mdip_', '') for col in media_vars]
-    for i in range(len(media_names)):
-        adstock_params[media_names[i]] = {
-            'L': max_lag,
-            'P': peak[i],
-            'D': decay[i]
-        }
-    mmm['adstock_params'] = adstock_params
-    return mmm
-
-mmm = extract_mmm(fit2, max_lag=max_lag, media_vars=mdip_cols, ctrl_vars=['base_sales'])
-```
-
 **Distribution of Media Coefficients**    
 red line: mean, green line: median    
 ![media coefficients distribution](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xptfcjhj30tk0nvaby.jpg)
-
-
 
 ### Decompose sales to media channels' contribution
 
@@ -710,7 +617,7 @@ mc_df = mmm_decompose_media_contrib(mmm, df, y_true=df['sales_ln'])
 adstock_params = mmm['adstock_params']
 mc_pct, mc_pct2 = calc_media_contrib_pct(mc_df, period=52)
 ```
-
+    
 RMSE (log-log model):  0.04977    
 MAPE (multiplicative model):  15.71%    
     
@@ -830,30 +737,6 @@ def train_hill_model(df, mc_df, adstock_params, media, sm):
         }
     }
     return hill_model
-```
-
-
-```python
-# extract params
-def extract_hill_model_params(hill_model, method='mean'):
-    if method=='mean':
-        hill_model_params = {
-            'beta_hill': np.mean(hill_model['beta_hill_list']), 
-            'ec': np.mean(hill_model['ec_list']), 
-            'slope': np.mean(hill_model['slope_list'])
-        }
-    elif method=='median':
-        hill_model_params = {
-            'beta_hill': np.median(hill_model['beta_hill_list']), 
-            'ec': np.median(hill_model['ec_list']), 
-            'slope': np.median(hill_model['slope_list'])
-        }
-    return hill_model_params
-
-def hill_model_predict(hill_model_params, x):
-    beta_hill, ec, slope = hill_model_params['beta_hill'], hill_model_params['ec'], hill_model_params['slope']
-    y_pred = beta_hill * hill_transform(x, ec, slope)
-    return y_pred
 
 # train hill models for all media channels
 sm3 = pystan.StanModel(model_code=model_code3, verbose=True)
@@ -863,16 +746,8 @@ for media in to_train:
     print('training for media: ', media)
     hill_model = train_hill_model(df, mc_df, adstock_params, media, sm3)
     hill_models[media] = hill_model
-
-# extract params by mean
-hill_model_params_mean, hill_model_params_med = {}, {}
-for md in list(hill_models.keys()):
-    hill_model = hill_models[md]
-    params1 = extract_hill_model_params(hill_model, method='mean')
-    params1['sc'] = hill_model['sc']
-    hill_model_params_mean[md] = params1
 ```
-
+    
 **Distribution of K (Half Saturation Point)**    
 ![half saturation distribution](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xoj4u7cj30t60jcjsv.jpg)    
 **Distribution of S (Slope)**    
@@ -880,113 +755,24 @@ for md in list(hill_models.keys()):
 **Diminishing Return Model (Fitted Hill Curve)**    
 ![fitted hill](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm62suqj30sv0pe0v2.jpg)    
 
-
-
 ### Calculate overall ROAS and weekly ROAS
 - Overall ROAS = total media contribution / total media spending
 - Weekly ROAS = weekly media contribution / weekly media spending
-
-
-```python
-# adstocked media spending
-ms_df = pd.DataFrame()
-for md in list(hill_models.keys()):
-    hill_model = hill_models[md]
-    x = np.array(hill_model['data']['X']) * hill_model['sc']['x']
-    ms_df['mdsp_'+md] = x
-
-# calc overall ROAS of a given period
-def calc_roas(mc_df, ms_df, period=None):
-    roas = {}
-    md_names = [col.split('_')[-1] for col in ms_df.columns]
-    for i in range(len(md_names)):
-        md = md_names[i]
-        sp, mc = ms_df['mdsp_'+md], mc_df['mdip_'+md]
-        if period is None:
-            md_roas = mc.sum()/sp.sum()
-        else:
-            md_roas = mc[-period:].sum()/sp[-period:].sum()
-        roas[md] = md_roas
-    return roas
-
-# calc weekly ROAS
-def calc_weekly_roas(mc_df, ms_df):
-    weekly_roas = pd.DataFrame()
-    md_names = [col.split('_')[-1] for col in ms_df.columns]
-    for md in md_names:
-        weekly_roas[md] = mc_df['mdip_'+md]/ms_df['mdsp_'+md]
-    weekly_roas.replace([np.inf, -np.inf, np.nan], 0, inplace=True)
-    return weekly_roas
-
-roas_1y = calc_roas(mc_df, ms_df, period=52)
-weekly_roas = calc_weekly_roas(mc_df, ms_df)
-roas1y_df = pd.DataFrame(index=weekly_roas.columns.tolist())
-roas1y_df['roas_mean'] = weekly_roas[-52:].apply(np.mean, axis=0)
-roas1y_df['roas_median'] = weekly_roas[-52:].apply(np.median, axis=0)
-```
-
+    
 **Distribution of Weekly ROAS** (Recent 1 Year)    
 red line: mean, green line: median    
 ![weekly roas](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm9x0s0j30te0jcwft.jpg)
-
-
-
+    
 ### Calculate mROAS
+Marginal ROAS represents the return of incremental spending based on current spending. For example, I've spent $100 on SEM, how much will the next $1 bring.    
+mROAS is calculated by increasing the current spending level by 1%, the incremental channel contribution/incremental channel spending.    
 1. Current spending level ```cur_sp``` is represented by mean or median of weekly spending.    
 Next spending level ```next_sp``` is increasing ```cur_sp``` by 1%.
 2. Plug ```cur_sp``` and ```next_sp``` into the Hill function:    
 Current media contribution ```cur_mc``` = Hill(```cur_sp```)    
 Next-level media contribution ```next_mc``` = Hill(```next_sp```)    
 3. **mROAS** = (```next_mc``` - ```cur_mc```) / (0.01 * ```cur_sp```)
-
-
-```python
-def calc_mroas(hill_model, hill_model_params, method='median', period=52):
-    '''
-    calculate mROAS for a media channel in a given period
-    params:
-    hill_model: a dict containing model data and scaling factor
-    hill_model_params: a dict containing beta_hill, ec, slope
-    method: the way to represent current weekly spending level: 'mean', 'median'. 
-        default median, since spending tends to be right-skewed.
-    period: in weeks, the period used to calculate ROAS and mROAS. 52 is last one year.
-    return:
-    mROAS value
-    '''
-    mu_x, mu_y = hill_model['sc']['x'], hill_model['sc']['y']
-    # get current media spending level over the period specified
-    if period is None:
-        if method=='median':
-            cur_sp = np.median(hill_model['data']['X'])
-        elif method=='mean':
-            cur_sp = np.mean(hill_model['data']['X'])
-    else:
-        if method=='median':
-            cur_sp = np.median(hill_model['data']['X'][-period:])
-        elif method=='mean':
-            cur_sp = np.mean(hill_model['data']['X'][-period:])
-    # media contribution under current spending level
-    cur_mc = hill_model_predict(hill_model_params, cur_sp) * mu_y
-    # next spending level: increase by 1%
-    next_sp = cur_sp * 1.01
-    # media contribution under next spending level
-    next_mc = hill_model_predict(hill_model_params, next_sp) * mu_y
     
-    # mROAS
-    delta_mc = next_mc - cur_mc
-    delta_sp = cur_sp * 0.01 * mu_x
-    mroas = delta_mc/delta_sp
-    return mroas
-
-# calc mROAS based on mean and median of weekly spending
-mroas_mean, mroas_med = {}, {}
-for md in list(hill_models.keys()):
-    hill_model = hill_models[md]
-    hill_model_params = hill_model_params_mean[md]
-    mroas_mean[md] = calc_mroas(hill_model, hill_model_params, method='mean', period=52)
-    mroas_med[md] = calc_mroas(hill_model, hill_model_params, method='median', period=52)
-```
-
 ​    
 
 **ROAS & mROAS**    
@@ -1098,8 +884,6 @@ for md in list(hill_models.keys()):
   </tbody>
 </table>
 </div>
-
-
 
 # 3. Results & Marketing Budget Optimization    
 **Media Channel Contribution**    
