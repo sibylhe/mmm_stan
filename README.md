@@ -1,4 +1,4 @@
-# Python/STAN Implementation of Multiplicative Media Mix Model
+# Python/STAN Implementation of Multiplicative Marketing Mix Model
 The methodology of this project is based on [this paper](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/46001.pdf) by Google, but is applied to a more complicated, real-world setting, where 1) there are 13 media channels and 46 control variables; 2) models are built in a stacked way.    
      
 # 1. Introduction
@@ -655,8 +655,7 @@ Variables are centralized by mean.
     
 **Priors**    
 ![diminishing return model priors](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xwpdt0vj30nu06hjrh.jpg)          
-**Implementation**    
-
+    
 
 ```python
 def create_hill_model_data(df, mc_df, adstock_params, media):
