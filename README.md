@@ -97,7 +97,7 @@ def apply_adstock(x, L, P, D):
     return adstocked_x
 ```
 
-## 1.2 Diminishing Return    
+## 1.3 Diminishing Return    
 After a certain saturation point, increasing spend will yield diminishing marginal return, the channel will be losing efficiency as you keep overspending on it. The diminishing return is modeled by Hill function:    
 ![Hill function](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm7xn1rj3081034742.jpg)    
 K: half saturation point    
@@ -162,129 +162,6 @@ base_vars = me_cols+st_cols+mrkdn_cols+va_cols+hldy_cols+seas_cols
 sales_cols =['sales']
 ```
 
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>wk_strt_dt</th>
-      <th>mdip_dm</th>
-      <th>mdip_inst</th>
-      <th>mdip_nsp</th>
-      <th>mdip_auddig</th>
-      <th>mdip_audtr</th>
-      <th>mdip_vidtr</th>
-      <th>mdip_viddig</th>
-      <th>mdip_so</th>
-      <th>mdip_on</th>
-      <th>mdip_em</th>
-      <th>mdip_sms</th>
-      <th>mdip_aff</th>
-      <th>mdip_sem</th>
-      <th>sales</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>2014-08-03</td>
-      <td>4863885</td>
-      <td>29087520</td>
-      <td>2421933</td>
-      <td>692315</td>
-      <td>37778097</td>
-      <td>10038746</td>
-      <td>2111112</td>
-      <td>0</td>
-      <td>3271007</td>
-      <td>1514755</td>
-      <td>27281</td>
-      <td>197828</td>
-      <td>83054</td>
-      <td>72051457.64</td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>2014-08-10</td>
-      <td>20887502</td>
-      <td>8345120</td>
-      <td>3984494</td>
-      <td>475810</td>
-      <td>12063657</td>
-      <td>9847977</td>
-      <td>587184</td>
-      <td>0</td>
-      <td>4260715</td>
-      <td>2234569</td>
-      <td>27531</td>
-      <td>123688</td>
-      <td>83124</td>
-      <td>78794770.54</td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>2014-08-17</td>
-      <td>11097724</td>
-      <td>17276800</td>
-      <td>1846832</td>
-      <td>784732</td>
-      <td>5770115</td>
-      <td>7235336</td>
-      <td>1015658</td>
-      <td>0</td>
-      <td>4405992</td>
-      <td>1616990</td>
-      <td>55267</td>
-      <td>186781</td>
-      <td>79768</td>
-      <td>70071185.56</td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>2014-08-24</td>
-      <td>1023446</td>
-      <td>18468480</td>
-      <td>2394834</td>
-      <td>1032301</td>
-      <td>12174000</td>
-      <td>8625122</td>
-      <td>2149160</td>
-      <td>0</td>
-      <td>6638320</td>
-      <td>1897998</td>
-      <td>32470</td>
-      <td>122389</td>
-      <td>138936</td>
-      <td>68642464.59</td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>2014-08-31</td>
-      <td>21109811</td>
-      <td>26659920</td>
-      <td>3312008</td>
-      <td>400456</td>
-      <td>31656134</td>
-      <td>19785657</td>
-      <td>2408661</td>
-      <td>0</td>
-      <td>4347752</td>
-      <td>2569158</td>
-      <td>55878</td>
-      <td>209969</td>
-      <td>87531</td>
-      <td>86190784.65</td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
 ## Model Architecture
 The model is built in a stacked way. Three models are trained:   
 - Control Model
@@ -314,31 +191,6 @@ import pystan
 import os
 os.environ['CC'] = 'gcc-10'
 os.environ['CXX'] = 'g++-10'
-
-# helper functions
-def apply_mean_center(x):
-    mu = np.mean(x)
-    xm = x/mu
-    return xm, mu
-
-def mean_center_trandform(df, cols):
-    df_new = pd.DataFrame()
-    sc = {}
-    for col in cols:
-        x = df[col].values
-        df_new[col], mu = apply_mean_center(x)
-        sc[col] = mu
-    return df_new, sc
-
-def mean_log1p_trandform(df, cols):
-    df_new = pd.DataFrame()
-    sc = {}
-    for col in cols:
-        x = df[col].values
-        xm, mu = apply_mean_center(x)
-        sc[col] = mu
-        df_new[col] = np.log1p(xm)
-    return df_new, sc
 
 # mean-centralize: sales, numeric base_vars
 df_ctrl, sc_ctrl = mean_center_trandform(df, ['sales']+me_cols+st_cols+mrkdn_cols)
@@ -526,93 +378,6 @@ Plug them into the multiplicative model:
 
 ```python
 # decompose sales to media contribution
-def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
-    adstock_params = mmm['adstock_params']
-    beta, tau = mmm['beta'], mmm['tau']
-    media_vars, ctrl_vars = mmm['media_vars'], mmm['ctrl_vars']
-    num_media, num_ctrl = len(media_vars), len(ctrl_vars)
-    
-    # X_media2: adstocked, mean-centered media variables + 1
-    X_media2 = adstock_transform(df, media_vars, adstock_params)
-    X_media2, sc_mmm2 = mean_center_trandform(X_media2, media_vars)
-    X_media2 = X_media2 + 1
-    # X_ctrl2, mean-centered control variables + 1
-    X_ctrl2, sc_mmm2_1 = mean_center_trandform(df[ctrl_vars], ctrl_vars)
-    X_ctrl2 = X_ctrl2 + 1
-    # y_true2, mean-centered sales variable + 1
-    y_true2, sc_mmm2_2 = mean_center_trandform(df, ['sales'])
-    y_true2 = y_true2 + 1
-    sc_mmm2.update(sc_mmm2_1)
-    sc_mmm2.update(sc_mmm2_2)
-    # X2 <- media variables + ctrl variable
-    X2 = pd.concat([X_media2, X_ctrl2], axis=1)
-
-    # 1. compute each media/control factor: 
-    # log-log model: log(sales) = log(X[0])*beta[0] + ... + log(X[13])*beta[13] + tau
-    # multiplicative model: sales = X[0]^beta[0] * ... * X[13]^beta[13] * e^tau
-    # each factor = X[i]^beta[i]
-    # intercept = e^tau
-    factor_df = pd.DataFrame(columns=media_vars+ctrl_vars+['intercept'])
-    for i in range(num_media):
-        colname = media_vars[i]
-        factor_df[colname] = X[colname] ** beta[i]
-    for i in range(num_ctrl):
-        colname = ctrl_vars[i]
-        factor_df[colname] = X[colname] ** beta[num_media+i]
-    factor_df['intercept'] = np.exp(tau)
-
-    # 2. calculate the product of all factors -> y_pred
-    y_pred = factor_df.apply(np.prod, axis=1)
-    factor_df['y_pred'], factor_df['y_true2'] = y_pred, y_true2
-    factor_df['baseline'] = factor_df[['intercept']+ctrl_vars].apply(np.prod, axis=1)
-
-    # 3. calculate each media factor's contribution
-    # media contribution = total sales – sales upon removal of the media factor
-    mc_df = pd.DataFrame(columns=media_vars+['baseline'])
-    for col in media_vars:
-        mc_df[col] = factor_df['y_true2'] - factor_df['y_true2']/factor_df[col]
-    mc_df['baseline'] = factor_df['baseline']
-    mc_df['y_true2'] = factor_df['y_true2']
-
-    # 4. scale contribution
-    # predicted total media contribution: product of all media factors
-    mc_df['mc_pred'] = mc_df[media_vars].apply(np.sum, axis=1)
-    # true total media contribution: total volume - baseline
-    mc_df['mc_true'] = mc_df['y_true2'] - mc_df['baseline']
-    # predicted total media contribution is slightly different from true total media contribution
-    # scale each media factor’s contribution by removing the delta volume proportionally
-    mc_df['mc_delta'] = mc_df['mc_true'] - mc_df['mc_pred']
-    for col in media_vars:
-        mc_df[col] = mc_df[col] - mc_df['mc_delta']*mc_df[col]/mc_df['mc_pred']
-
-    # 5. scale mc_df based on original sales
-    mc_df['sales'] = original_sales
-    for col in media_vars+['baseline']:
-        mc_df[col] = mc_df[col]*mc_df['sales']/mc_df['y_true2']
-
-    return mc_df
-
-def calc_media_contrib_pct(mc_df, media_vars=mdip_cols, sales_col='sales', period=52):
-    '''
-    returns:
-    mc_pct: percentage over total sales
-    mc_pct2: percentage over incremental sales (sales contributed by media channels)
-    '''
-    mc_pct = {}
-    mc_pct2 = {}
-    s = 0
-    if period is None:
-        for col in (media_vars+['baseline']):
-            mc_pct[col] = (mc_df[col]/mc_df[sales_col]).mean()
-    else:
-        for col in (media_vars+['baseline']):
-            mc_pct[col] = (mc_df[col]/mc_df[sales_col])[-period:].mean()
-    for m in media_vars:
-        s += mc_pct[m]
-    for m in media_vars:
-        mc_pct2[m] = mc_pct[m]/s
-    return mc_pct, mc_pct2
-
 mc_df = mmm_decompose_media_contrib(mmm, df, y_true=df['sales_ln'])
 adstock_params = mmm['adstock_params']
 mc_pct, mc_pct2 = calc_media_contrib_pct(mc_df, period=52)
@@ -720,23 +485,6 @@ model {
 }
 '''
 
-# pipeline for training one hill model for a media channel
-def train_hill_model(df, mc_df, adstock_params, media, sm):
-    data, sc = create_hill_model_data(df, mc_df, adstock_params, media)
-    fit = sm.sampling(data=data, iter=2000, chains=4)
-    fit_result = fit.extract()
-    hill_model = {
-        'beta_hill_list': fit_result['beta_hill'].tolist(),
-        'ec_list': fit_result['ec'].tolist(),
-        'slope_list': fit_result['slope'].tolist(),
-        'sc': sc,
-        'data': {
-            'X': data['X'].tolist(),
-            'y': data['y'].tolist(),
-        }
-    }
-    return hill_model
-
 # train hill models for all media channels
 sm3 = pystan.StanModel(model_code=model_code3, verbose=True)
 hill_models = {}
@@ -747,10 +495,6 @@ for media in to_train:
     hill_models[media] = hill_model
 ```
     
-**Distribution of K (Half Saturation Point)**    
-![half saturation distribution](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xoj4u7cj30t60jcjsv.jpg)    
-**Distribution of S (Slope)**    
-![slope distribution](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xx5rqkej30te0jcta9.jpg)    
 **Diminishing Return Model (Fitted Hill Curve)**    
 ![fitted hill](https://tva1.sinaimg.cn/large/0081Kckwly1gl7wm62suqj30sv0pe0v2.jpg)    
 
