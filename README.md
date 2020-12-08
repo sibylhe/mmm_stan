@@ -508,125 +508,14 @@ red line: mean, green line: median
     
 ### Calculate mROAS
 Marginal ROAS represents the return of incremental spending based on current spending. For example, I've spent $100 on SEM, how much will the next $1 bring.    
-mROAS is calculated by increasing the current spending level by 1%, the incremental channel contribution/incremental channel spending.    
-1. Current spending level ```cur_sp``` is represented by mean or median of weekly spending.    
+mROAS is calculated by increasing the current spending level by 1%, the incremental channel contribution over incremental channel spending.    
+1. Current spending level ```cur_sp``` is an array of weekly spending in a given period.    
 Next spending level ```next_sp``` is increasing ```cur_sp``` by 1%.
 2. Plug ```cur_sp``` and ```next_sp``` into the Hill function:    
-Current media contribution ```cur_mc``` = Hill(```cur_sp```)    
-Next-level media contribution ```next_mc``` = Hill(```next_sp```)    
-3. **mROAS** = (```next_mc``` - ```cur_mc```) / (0.01 * ```cur_sp```)
+Current media contribution ```cur_mc``` = beta * Hill(```cur_sp```)    
+Next-level media contribution ```next_mc``` = beta * Hill(```next_sp```)    
+3. **mROAS** = (sum(```next_mc```) - sum(```cur_mc```)) / sum(0.01 * ```cur_sp```)
     
-​    
-
-**ROAS & mROAS**    
-'roas_avg': overall ROAS = total contribution / total spending    
-'roas_mean': mean of weekly ROAS    
-'roas_median': median of weekly ROAS    
-'mroas_mean': mROAS calculated based on mean of weekly spending as current spending level    
-'mroas_median': mROAS calculated based on median of weekly spending as current spending level    
-
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>roas_mean</th>
-      <th>roas_median</th>
-      <th>mroas_mean</th>
-      <th>mroas_median</th>
-      <th>roas_avg</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>dm</th>
-      <td>2.551370</td>
-      <td>2.412951</td>
-      <td>4.740435</td>
-      <td>4.740438</td>
-      <td>2.619002</td>
-    </tr>
-    <tr>
-      <th>inst</th>
-      <td>5.378604</td>
-      <td>5.060652</td>
-      <td>10.096348</td>
-      <td>9.348433</td>
-      <td>5.852283</td>
-    </tr>
-    <tr>
-      <th>nsp</th>
-      <td>6.157474</td>
-      <td>4.911293</td>
-      <td>7.138000</td>
-      <td>6.888607</td>
-      <td>8.177945</td>
-    </tr>
-    <tr>
-      <th>auddig</th>
-      <td>20.562877</td>
-      <td>18.291145</td>
-      <td>14.474924</td>
-      <td>16.671421</td>
-      <td>20.621256</td>
-    </tr>
-    <tr>
-      <th>audtr</th>
-      <td>4.547045</td>
-      <td>3.725285</td>
-      <td>6.489088</td>
-      <td>7.003847</td>
-      <td>4.480175</td>
-    </tr>
-    <tr>
-      <th>vidtr</th>
-      <td>14.669730</td>
-      <td>12.596672</td>
-      <td>15.470877</td>
-      <td>16.400834</td>
-      <td>11.044632</td>
-    </tr>
-    <tr>
-      <th>viddig</th>
-      <td>3.354704</td>
-      <td>3.027100</td>
-      <td>4.460041</td>
-      <td>5.457326</td>
-      <td>3.665650</td>
-    </tr>
-    <tr>
-      <th>so</th>
-      <td>2.553423</td>
-      <td>2.480701</td>
-      <td>1.488556</td>
-      <td>1.792750</td>
-      <td>2.540194</td>
-    </tr>
-    <tr>
-      <th>on</th>
-      <td>4.660522</td>
-      <td>4.254862</td>
-      <td>5.927870</td>
-      <td>6.575460</td>
-      <td>4.831279</td>
-    </tr>
-    <tr>
-      <th>sem</th>
-      <td>2.102519</td>
-      <td>2.131076</td>
-      <td>3.114688</td>
-      <td>4.646537</td>
-      <td>2.062126</td>
-    </tr>
-  </tbody>
-</table>
-</div>
 
 # 3. Results & Marketing Budget Optimization    
 **Media Channel Contribution**    
