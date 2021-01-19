@@ -511,10 +511,10 @@ def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
     factor_df = pd.DataFrame(columns=media_vars+ctrl_vars+['intercept'])
     for i in range(num_media):
         colname = media_vars[i]
-        factor_df[colname] = X[colname] ** beta[i]
+        factor_df[colname] = X2[colname] ** beta[i]
     for i in range(num_ctrl):
         colname = ctrl_vars[i]
-        factor_df[colname] = X[colname] ** beta[num_media+i]
+        factor_df[colname] = X2[colname] ** beta[num_media+i]
     factor_df['intercept'] = np.exp(tau)
 
     # 2. calculate the product of all factors -> y_pred
@@ -575,7 +575,7 @@ def calc_media_contrib_pct(mc_df, media_vars=mdip_cols, sales_col='sales', perio
         mc_pct2[m] = mc_pct[m]/s
     return mc_pct, mc_pct2
 
-mc_df = mmm_decompose_media_contrib(mmm, df, y_true=df['sales_ln'])
+mc_df = mmm_decompose_contrib(mmm, df, original_sales=df['sales'])
 adstock_params = mmm['adstock_params']
 mc_pct, mc_pct2 = calc_media_contrib_pct(mc_df, period=52)
 # mc_df.to_csv('mc_df1.csv', index=False)
@@ -919,14 +919,3 @@ roas1y_df
 # 'roas_mean': mean of weekly ROAS    
 # 'roas_median': median of weekly ROAS    
 # 'mroas': mROAS calculated based on increasing current spending level by 1%   
-
-
-# References
-# [1] Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects. https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/46001.pdf    
-# [2] STAN tutorials:    
-# Prior Choice Recommendations. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations    
-# https://www.cnpython.com/pypi/pystan    
-# https://mc-stan.org/users/documentation/case-studies/pystan_workflow.html    
-#    https://nbviewer.jupyter.org/github/QuantEcon/QuantEcon.notebooks/blob/master/IntroToStan_basics_workflow.ipynb    
-# HMC sampling: https://education.illinois.edu/docs/default-source/carolyn-anderson/edpsy590ca/lectures/9-hmc-and-stan/hmc_n_stan_post.pdf       
-
