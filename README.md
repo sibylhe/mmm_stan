@@ -531,15 +531,19 @@ High mROAS: TV, insert, radio, online display
 ![media channels roas mroas plot](https://tva1.sinaimg.cn/large/0081Kckwly1gl7xrzbo4bj30ys0hd3zj.jpg)    
 Note: trivial channels: newspaper, digital audio, digital video, social (spending/impression too small to be qualified, so that their results are not trustworthy).    
 
+## Q&A
+Please check this running list of [FAQ](https://github.com/sibylhe/mmm_stan/discussions/7). If you have questions, comments, suggestions, and practical problems (when applying this script to your datasets) that are unaddressed in this list, feel free to [open a discussion](https://github.com/sibylhe/mmm_stan/discussions). You may also comment on my [Medium article](https://towardsdatascience.com/python-stan-implementation-of-multiplicative-marketing-mix-model-with-deep-dive-into-adstock-a7320865b334).    
+For bugs/errors in code, please open an issue. An issue is expected to be addressed in the following weekend.
+
 
 ## References
 
 [1] Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects. https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/46001.pdf    
 [2] STAN tutorials:    
 Prior Choice Recommendations. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations    
-https://www.cnpython.com/pypi/pystan    
-https://mc-stan.org/users/documentation/case-studies/pystan_workflow.html    
-https://nbviewer.jupyter.org/github/QuantEcon/QuantEcon.notebooks/blob/master/IntroToStan_basics_workflow.ipynb    
-HMC sampling: https://education.illinois.edu/docs/default-source/carolyn-anderson/edpsy590ca/lectures/9-hmc-and-stan/hmc_n_stan_post.pdf       
+Pystan Documentation. https://www.cnpython.com/pypi/pystan    
+Pystan Workflow. https://mc-stan.org/users/documentation/case-studies/pystan_workflow.html    
+A quick-start introduction to Stan for economists. https://nbviewer.jupyter.org/github/QuantEcon/QuantEcon.notebooks/blob/master/IntroToStan_basics_workflow.ipynb    
+HMC sampling. https://education.illinois.edu/docs/default-source/carolyn-anderson/edpsy590ca/lectures/9-hmc-and-stan/hmc_n_stan_post.pdf       
     
-**Thanks for reading! If you like this project, please leave a :star2: for motivation:)**
+**If you like this project, please leave a :star2: for motivation:)**
