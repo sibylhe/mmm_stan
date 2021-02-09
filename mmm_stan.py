@@ -538,7 +538,7 @@ def mmm_decompose_contrib(mmm, df, original_sales=df['sales']):
     mc_df['mc_true'] = mc_df['y_true2'] - mc_df['baseline']
     # predicted total media contribution is slightly different from true total media contribution
     # scale each media factor’s contribution by removing the delta volume proportionally
-    mc_df['mc_delta'] =  ['mc_pred'] - mc_df['mc_true']
+    mc_df['mc_delta'] =  mc_df['mc_pred'] - mc_df['mc_true']
     for col in media_vars:
         mc_df[col] = mc_df[col] - mc_df['mc_delta']*mc_df[col]/mc_df['mc_pred']
 
