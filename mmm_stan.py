@@ -699,8 +699,8 @@ def hill_model_predict(hill_model_params, x):
     return y_pred
 
 def evaluate_hill_model(hill_model, hill_model_params):
-    x = hill_model['data']['X']
-    y_true = hill_model['data']['y'] * hill_model['sc']['y']
+    x = np.array(hill_model['data']['X'])
+    y_true = np.array(hill_model['data']['y']) * hill_model['sc']['y']
     y_pred = hill_model_predict(hill_model_params, x) * hill_model['sc']['y']
     print('mape on original data: ', 
          mean_absolute_percentage_error(y_true, y_pred))
