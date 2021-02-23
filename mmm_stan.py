@@ -883,7 +883,7 @@ def calc_mroas(hill_model, hill_model_params, period=52):
     '''
     mu_x, mu_y = hill_model['sc']['x'], hill_model['sc']['y']
     # get current media spending level over the period specified
-    cur_sp = hill_model['data']['X']
+    cur_sp = np.asarray(hill_model['data']['X'])
     if period is not None:
         cur_sp = cur_sp[-period:]
     cur_mc = sum(hill_model_predict(hill_model_params, cur_sp) * mu_y)
