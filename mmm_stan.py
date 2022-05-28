@@ -20,7 +20,9 @@
 # os.environ['CC'] = 'gcc-10'
 # os.environ['CXX'] = 'g++-10'
 
-
+import argparse
+from itertools import chain
+import json
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -40,6 +42,50 @@ sns.set_style('darkgrid')
 # Data    
 # Four years' (209 weeks) records of sales, media impression and media spending at weekly level.   
 df = pd.read_csv('data.csv')
+
+single_media_param_group = True
+if __name__ == '__main__':
+    
+    parser = argparse.ArgumentParser(description = 'Stan Media Mix Modelling', 
+                                     formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument( '--config', 
+                         help = 'Use a config file for specifying the media mix modelling pipeline. \n'
+                                'Run ``model_configs.py --default-config`` for a default config')
+    parser.add_argument( '--debug', 
+                         action = 'store_true',
+                         help = 'Run the model pipeline with 3 in 4 observations removed, for faster execution \n'
+                                'Warning - may induce ``RuntimeError:  Initialization failed.`` due to Stan optimiser having sparse observations')
+    parser.add_argument( '--validate-config', 
+                         help = 'validte a config using its input path (``model_configs.py --validate-config config.json``')
+    
+    args = parser.parse_args()        
+    if args.config:
+        with open( args.config, 'rt' ) as fo:
+            config = json.load( fo )
+        
+        single_media_param_group = False
+        
+        from model_configs import Media
+        media_model = Media( config['model']['media_model_config']['priors'] )
+        
+    if args.validate_config:
+        with open( args.validate_config, 'rt' ) as fo:
+            config = json.load( fo )
+        try:
+            import validate
+            validate.StanMediaConfigValidator( config )
+        except ImportError:
+            print('Problem importing validate.py. Check its depdendencies is installed, '
+                  'and that validate.py is in the same directory as this file\n'
+                  f'Could not validate the config: {args.validate_config}')
+    
+    elif args.debug:
+        # keep track of when sparse identifyier variables are "on"
+        from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
+        skf = StratifiedKFold(n_splits=4)
+        train,test= train_test_split(df,test_size=0.25,random_state=1)
+        # sparse columns like ['seas_*','sldy_*','va_*'] may have issues with convergence
+        df = test
 
 # 1. media variables
 # media impression
@@ -227,7 +273,6 @@ def mean_log1p_trandform(df, cols):
         df_new[col] = np.log1p(xm)
     return df_new, sc
 
-import json
 
 def save_json(data, file_name):
     with open(file_name, 'w') as fp:
@@ -328,93 +373,104 @@ print('mape: ', mean_absolute_percentage_error(df['sales'], df['base_sales']))
 
 
 # 2.2 Marketing Mix Model
-df_mmm, sc_mmm = mean_log1p_trandform(df, ['sales', 'base_sales'])
-mu_mdip = df[mdip_cols].apply(np.mean, axis=0).values
 max_lag = 8
-num_media = len(mdip_cols)
-# padding zero * (max_lag-1) rows
-X_media = np.concatenate((np.zeros((max_lag-1, num_media)), df[mdip_cols].values), axis=0)
-X_ctrl = df_mmm['base_sales'].values.reshape(len(df),1)
-model_data2 = {
-    'N': len(df),
-    'max_lag': max_lag, 
-    'num_media': num_media,
-    'X_media': X_media, 
-    'mu_mdip': mu_mdip,
-    'num_ctrl': X_ctrl.shape[1],
-    'X_ctrl': X_ctrl, 
-    'y': df_mmm['sales'].values
-}
-
-model_code2 = '''
-functions {
-  // the adstock transformation with a vector of weights
-  real Adstock(vector t, row_vector weights) {
-    return dot_product(t, weights) / sum(weights);
-  }
-}
-data {
-  // the total number of observations
-  int<lower=1> N;
-  // the vector of sales
-  real y[N];
-  // the maximum duration of lag effect, in weeks
-  int<lower=1> max_lag;
-  // the number of media channels
-  int<lower=1> num_media;
-  // matrix of media variables
-  matrix[N+max_lag-1, num_media] X_media;
-  // vector of media variables' mean
-  real mu_mdip[num_media];
-  // the number of other control variables
-  int<lower=1> num_ctrl;
-  // a matrix of control variables
-  matrix[N, num_ctrl] X_ctrl;
-}
-parameters {
-  // residual variance
-  real<lower=0> noise_var;
-  // the intercept
-  real tau;
-  // the coefficients for media variables and base sales
-  vector<lower=0>[num_media+num_ctrl] beta;
-  // the decay and peak parameter for the adstock transformation of
-  // each media
-  vector<lower=0,upper=1>[num_media] decay;
-  vector<lower=0,upper=ceil(max_lag/2)>[num_media] peak;
-}
-transformed parameters {
-  // the cumulative media effect after adstock
-  real cum_effect;
-  // matrix of media variables after adstock
-  matrix[N, num_media] X_media_adstocked;
-  // matrix of all predictors
-  matrix[N, num_media+num_ctrl] X;
-  
-  // adstock, mean-center, log1p transformation
-  row_vector[max_lag] lag_weights;
-  for (nn in 1:N) {
-    for (media in 1 : num_media) {
-      for (lag in 1 : max_lag) {
-        lag_weights[max_lag-lag+1] <- pow(decay[media], (lag - 1 - peak[media]) ^ 2);
-      }
-     cum_effect <- Adstock(sub_col(X_media, nn, media, max_lag), lag_weights);
-     X_media_adstocked[nn, media] <- log1p(cum_effect/mu_mdip[media]);
+df_mmm, sc_mmm = mean_log1p_trandform(df, ['sales', 'base_sales'])
+if single_media_param_group:
+    mu_mdip = df[mdip_cols].apply(np.mean, axis=0).values
+    num_media = len(mdip_cols)
+    # padding zero * (max_lag-1) rows
+    X_media = np.concatenate((np.zeros((max_lag-1, num_media)), df[mdip_cols].values), axis=0)
+    X_ctrl = df_mmm['base_sales'].values.reshape(len(df),1)
+    model_data2 = {
+        'N': len(df),
+        'max_lag': max_lag, 
+        'num_media': num_media,
+        'X_media': X_media, 
+        'mu_mdip': mu_mdip,
+        'num_ctrl': X_ctrl.shape[1],
+        'X_ctrl': X_ctrl, 
+        'y': df_mmm['sales'].values
     }
-  X <- append_col(X_media_adstocked, X_ctrl);
-  } 
-}
-model {
-  decay ~ beta(3,3);
-  peak ~ uniform(0, ceil(max_lag/2));
-  tau ~ normal(0, 5);
-  for (i in 1 : num_media+num_ctrl) {
-    beta[i] ~ normal(0, 1);
-  }
-  noise_var ~ inv_gamma(0.05, 0.05 * 0.01);
-  y ~ normal(tau + X * beta, sqrt(noise_var));
-}
-'''
+
+    model_code2 = '''
+    functions {
+    // the adstock transformation with a vector of weights
+    real Adstock(vector t, row_vector weights) {
+        return dot_product(t, weights) / sum(weights);
+    }
+    }
+    data {
+    // the total number of observations
+    int<lower=1> N;
+    // the vector of sales
+    real y[N];
+    // the maximum duration of lag effect, in weeks
+    int<lower=1> max_lag;
+    // the number of media channels
+    int<lower=1> num_media;
+    // matrix of media variables
+    matrix[N+max_lag-1, num_media] X_media;
+    // vector of media variables' mean
+    real mu_mdip[num_media];
+    // the number of other control variables
+    int<lower=1> num_ctrl;
+    // a matrix of control variables
+    matrix[N, num_ctrl] X_ctrl;
+    }
+    parameters {
+    // residual variance
+    real<lower=0> noise_var;
+    // the intercept
+    real tau;
+    // the coefficients for media variables and base sales
+    vector<lower=0>[num_media+num_ctrl] beta;
+    // the decay and peak parameter for the adstock transformation of
+    // each media
+    vector<lower=0,upper=1>[num_media] decay;
+    vector<lower=0,upper=ceil(max_lag/2)>[num_media] peak;
+    }
+    transformed parameters {
+    // the cumulative media effect after adstock
+    real cum_effect;
+    // matrix of media variables after adstock
+    matrix[N, num_media] X_media_adstocked;
+    // matrix of all predictors
+    matrix[N, num_media+num_ctrl] X;
+    
+    // adstock, mean-center, log1p transformation
+    row_vector[max_lag] lag_weights;
+    for (nn in 1:N) {
+        for (media in 1 : num_media) {
+        for (lag in 1 : max_lag) {
+            lag_weights[max_lag-lag+1] <- pow(decay[media], (lag - 1 - peak[media]) ^ 2);
+        }
+        cum_effect <- Adstock(sub_col(X_media, nn, media, max_lag), lag_weights);
+        X_media_adstocked[nn, media] <- log1p(cum_effect/mu_mdip[media]);
+        }
+    X <- append_col(X_media_adstocked, X_ctrl);
+      } 
+    }
+    model {
+    decay ~ beta(3,3);
+    peak ~ uniform(0, ceil(max_lag/2));
+    tau ~ normal(0, 5);
+    for (i in 1 : num_media+num_ctrl) {
+        beta[i] ~ normal(0, 1);
+    }
+    noise_var ~ inv_gamma(0.05, 0.05 * 0.01);
+    y ~ normal(tau + X * beta, sqrt(noise_var));
+    }
+    '''
+else:  # Create media model from input config file
+    """Uses the argument ``path/to/python --config config.json`` to generate media model"""
+    additional_media_param_groups = config['model']['media_model_config']['additional_param_groups']
+    additional_media_names = chain.from_iterable([grp['media_cols'] for grp in additional_media_param_groups])
+    normal_media = list(set(mdip_cols).difference( set(additional_media_names) ))
+    model_data2, model_code2 = media_model.model_inputs( mdip_cols=normal_media,
+                                                     ctrl_vars=['base_sales'],
+                                                     df=df,
+                                                     df_mmm=df_mmm,
+                                                     additional_groups=additional_media_param_groups)
 
 sm2 = pystan.StanModel(model_code=model_code2, verbose=True)
 fit2 = sm2.sampling(data=model_data2, iter=1000, chains=3)
@@ -449,9 +505,28 @@ def extract_mmm(fit_result, max_lag=max_lag,
     mmm['adstock_params'] = adstock_params
     return mmm
 
-mmm = extract_mmm(fit2, max_lag=max_lag, 
-                media_vars=mdip_cols, ctrl_vars=['base_sales'])
-# save_json(mmm, 'mmm1.json')
+# # 2nd Media group
+if not single_media_param_group:
+    mmm = extract_mmm(fit2, 
+                      max_lag=max_lag, 
+                      media_vars=normal_media, 
+                      ctrl_vars=['base_sales'])
+    # extract additional mmm params from stan fit model into mmm variable
+    for grp in additional_media_param_groups:
+        suffix = grp['param_suffix']
+        # group name key is an optional config input.
+        group_name = grp.get('group_name',f'group_{suffix}')
+        mmm[group_name] = grp['media_cols']
+        mmm[f'decay{suffix}'] = decay2 = fit2[f'decay{suffix}'].mean(axis=0).tolist()
+        mmm[f'peak{suffix}'] = peak2 = fit2[f'peak{suffix}'].mean(axis=0).tolist()
+        mmm[f'beta{suffix}'] = fit2[f'beta{suffix}'].mean(axis=0).tolist()
+        mmm[f'decay{suffix}_list'] = fit2[f'decay{suffix}'].tolist()
+        mmm[f'peak{suffix}_list'] = fit2[f'peak{suffix}'].tolist()
+        mmm[f'beta{suffix}_list'] = fit2[f'beta{suffix}'].tolist()
+else:
+    mmm = extract_mmm(fit2, max_lag=max_lag, 
+                    media_vars=mdip_cols, ctrl_vars=['base_sales'])
+save_json(mmm, 'mmm1.json')
 
 
 # plot media coefficients' distributions
